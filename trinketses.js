@@ -156,7 +156,7 @@
 		this.availableTrinkets = {};
 		function updateTrinketList()
 		{
-			// Abort early if data not loaded yet.
+			// No data loaded yet, abort.
 			if(!ctrl.trinkets || !ctrl.data || !ctrl.data.item_ids) return;
 
 			// Loop through user supplied trinket list to add name and wowhead URLs
@@ -326,11 +326,18 @@
 
 		// Data from WarcraftPriests github page
 		this.data = {item_ids:[]};
+		this.loading = null;
 		function load()
 		{
-			ctrl.data = WarcraftPriests.get({chart: 'trinkets_'+ctrl.talent+'_'+ctrl.style+'.json'}, function()
+			const chart = 'trinkets_'+ctrl.talent+'_'+ctrl.style+'.json';
+			if(ctrl.loading === chart) return;
+			ctrl.loading = chart;
+			ctrl.data = WarcraftPriests.get({chart: chart}, function()
 			{
+				// No longer need the data, abort.
+				if(chart !== ctrl.loading) return;
 				updateTrinketList();
+				ctrl.loading = null;
 			});
 		}
 
