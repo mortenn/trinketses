@@ -4,7 +4,14 @@
 
 	// Override base item level for some trinkets that don't have their base in the sim.
 	const ilevel_override = {
-		159624: 300
+		159610: 300,
+		159624: 300,
+		160651: 350,
+		160654: 350,
+		161417: 355,
+		165571: 350,
+		166418: 350,
+		167867: 350
 	};
 	// Some additional item id mapping data as WarcraftPriests JSON feed is missing some.
 	const trinketNames = {
