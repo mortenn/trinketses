@@ -5,17 +5,20 @@
 		<textarea id="simc" ng-model="$ctrl.simCraft" class="form-control form-control-sm"></textarea>
 	</div>
 </div>
-<div class="card">
-	<div class="card-body">
-		<h5 class="card-title">Your trinkets</h5>
-		<div ng-repeat="trinket in $ctrl.trinkets|filter:{name:''}">
-			<a href="{{trinket.wowhead}}">{{(trinket.name || trinket.id )}}</a>
-			{{((trinket.bonus_level >= 0 ? '+' : '') +trinket.bonus_level)}}
-			<div ng-if="trinket.gems" style="padding-left: 20pt">
-				<a ng-repeat="gem in trinket.gems" href="{{gem.wowhead}}" style="margin-right: 5px">&nbsp;</a>
+
+<div ng-if="$ctrl.trinkets.length > 0">
+	<div class="card">
+		<div class="card-body">
+			<h5 class="card-title">Your trinkets</h5>
+			<div ng-repeat="trinket in $ctrl.trinkets|filter:{name:''}">
+				<a href="{{trinket.wowhead}}">{{(trinket.name || trinket.id )}}</a>
+				{{((trinket.bonus_level >= 0 ? '+' : '') +trinket.bonus_level)}}
+				<div ng-if="trinket.gems" style="padding-left: 20pt">
+					<a ng-repeat="gem in trinket.gems" href="{{gem.wowhead}}" style="margin-right: 5px">&nbsp;</a>
+				</div>
 			</div>
 		</div>
 	</div>
-</div>
 
-<trinket-chart trinkets="$ctrl.trinkets"></trinket-chart>
+	<trinket-chart trinkets="$ctrl.trinkets"></trinket-chart>
+</div>

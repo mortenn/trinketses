@@ -40,7 +40,7 @@
 			controller: TrinketList
 		}
 	);
-	function TrinketList($scope, $window)
+	function TrinketList($scope, $window, $timeout)
 	{
 		const ctrl = this;
 
@@ -79,18 +79,20 @@
 			}
 			if(ilevel_override.hasOwnProperty(trinket.id))
 				trinket.item_level = ilevel_override[trinket.id];
-			ctrl.trinkets.push(trinket);
+			return trinket;
 		};
 
 		const parseSimCraft = function(input)
 		{
 			$window.localStorage.simCraft = input;
+			ctrl.trinkets = [];
 			const trinketEntries = /trinket\d=(\S+)/g;
 			let trinket = null;
+			const trinkets = [];
 			do
 			{
 				trinket = trinketEntries.exec(input);
-				if(!trinket) continue;
+				if(!trinket) break;
 				let attributes = trinket[1].split(',');
 				const item = {};
 				for(let i = 0; i < attributes.length; ++i)
@@ -100,10 +102,10 @@
 					if(attribute.length === 2)
 						item[attribute[0]] = attribute[1];
 				}
-
-				ParseTrinket(item);
+				trinkets.push(ParseTrinket(item));
 			}
 			while(trinket);
+			$timeout(() => ctrl.trinkets = trinkets, 5);
 		};
 
 
@@ -174,9 +176,8 @@
 		}
 
 		this.chart = [];
-		this.chartConfig = {
+		$scope.chartConfig = {
 			chart: {
-				renderTo: 'ranking',
 				type: 'bar',
 				events: {
 					redraw: () => $timeout(() => $window.$WowheadPower.refreshLinks(), 1)
@@ -203,6 +204,7 @@
 				}
 			},
 			xAxis: {
+				categories: [],
 				labels: {
 					useHTML: true,
 					align: 'right',
@@ -265,20 +267,21 @@
 				trinkets[sorted] = trinket;
 			}
 
-			ctrl.chartConfig.xAxis.categories = [];
-			ctrl.chartConfig.series = [];
+			const categories = [];
 			for(const name in trinkets)
 			{
 				if(!trinkets.hasOwnProperty(name)) continue;
 				const trinket = trinkets[name];
 
-				ctrl.chartConfig.xAxis.categories.push(
+				categories.push(
 					'<div style="display:inline-block;margin-bottom:-3px">' +
 					'<a href="#" rel="' + trinket.wowhead + '" class="chart_link">' + trinket.name + '</a>' +
 					'</div>'
 				);
 			}
+			$scope.chartConfig.xAxis.categories = categories;
 
+			const series = [];
 			let itemLevels = ctrl.data.simulated_steps;
 			for(const currIlevel of itemLevels)
 			{
@@ -315,13 +318,13 @@
 						}
 					);
 				}
-				ctrl.chartConfig.series.push({
+				series.push({
 					data: itemLevelDpsValues,
 					name: currIlevel,
 					showInLegend: true
 				});
 			}
-			//$timeout(() => $window.$WowheadPower.refreshLinks(), 100);
+			$scope.chartConfig.series = series;
 		}
 
 		// Data from WarcraftPriests github page
@@ -344,12 +347,9 @@
 		// AngularJS framework hooks
 
 		// User trinket list changes
-		this.$onChanges = () => updateTrinketList();
+		this.$onChanges = () => $timeout(updateTrinketList, 1);
 
 		// Ready to start loading data
-		this.$onInit = function()
-		{
-			load();
-		};
+		this.$onInit = () => load();
 	}
 })();
