@@ -1,0 +1,19 @@
+<div class="card">
+	<div class="card-body">
+		<h5 class="card-title">Chart data</h5>
+		<highchart id="ranking" config="$ctrl.chartConfig"></highchart>
+		Last updated: {{$ctrl.data.LastUpdated[0]}}
+		<form class="form-horizontal">
+			<div class="form-row">
+				<div class="col-auto">
+					<label for="talent">Talent</label>
+					<select class="form-control form-control-sm" id="talent" ng-options="item.id as item.label for item in $ctrl.talents" ng-model="$ctrl.talent"></select>
+				</div>
+				<div class="col-auto">
+					<label for="style">Simulation style</label>
+					<select class="form-control form-control-sm" id="style" ng-options="item.id as item.label for item in $ctrl.styles" ng-model="$ctrl.style"></select>
+				</div>
+			</div>
+		</form>
+	</div>
+</div>
