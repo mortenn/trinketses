@@ -1,25 +1,5 @@
 (function()
 {
-	const ilevel_color_table = {};
-
-	// Override base item level for some trinkets that don't have their base in the sim.
-	const ilevel_override = {
-		159610: 300,
-		159624: 300,
-		160651: 350,
-		160654: 350,
-		161417: 355,
-		165571: 350,
-		166418: 350,
-		167867: 350
-	};
-	// Some additional item id mapping data as WarcraftPriests JSON feed is missing some.
-	const trinketNames = {
-		167555: 'Pocket-Sized Computation Device',
-		161417: 'Ancient Knot of Wisdom',
-		166418: 'Crest of Pa\'ku'
-	};
-
 	const app = angular.module('trinketses', ['ngResource', 'highcharts-ng']);
 
 	app.config(
@@ -40,6 +20,9 @@
 		}
 	);
 
+	app.factory('_', $window => $window._);
+	app.factory('KnownTrinkets', $resource => $resource('/trinketses/known.json', {}));
+
 	app.component(
 		'trinketList',
 		{
@@ -47,17 +30,18 @@
 			controller: TrinketList
 		}
 	);
-	function TrinketList($scope, $window, $timeout)
+	function TrinketList($scope, $window, $timeout, KnownTrinkets, _)
 	{
 		const ctrl = this;
 
-		const ParseTrinket = function(trinket)
+		const ParseTrinket = function(item)
 		{
+			const trinket = ctrl.known[item.id];
 			trinket.wowhead = 'https://www.wowhead.com/item=' + trinket.id;
-			if(trinket.gem_id)
+			if(item.gem_id)
 			{
-				const gems = trinket.gem_id.split('/');
-				const bonus = trinket.gem_bonus_id ? trinket.gem_bonus_id.split('/') : [];
+				const gems = item.gem_id.split('/');
+				const bonus = item.gem_bonus_id ? item.gem_bonus_id.split('/') : [];
 				trinket.wowhead += '&gems=' + gems.join(':');
 				trinket.gems = [];
 				for(let g = 0; g < gems.length; ++g)
@@ -72,25 +56,37 @@
 					trinket.gems.push(gem);
 				}
 			}
-			if(trinket.bonus_id)
+			if(trinket.gem_variations && trinket.gem_variations.length > 0)
+			{
+				const gems = item.gem_id.split('/');
+				for(let i = 0; i < trinket.gem_variations.length; ++i)
+				{
+					if(_.reduce(trinket.gem_variations[i].gems, (match, gem) => _.contains(gems, gem) && match, true)) // jshint ignore:line
+					{
+						trinket.sim_name = trinket.gem_variations[i].sim_name;
+						break;
+					}
+				}
+			}
+			if(item.bonus_id)
 			{
 				trinket.bonus_level = 0;
-				const bonus = trinket.bonus_id.split('/');
+				const bonus = item.bonus_id.split('/');
 				for(let b = 0; b < bonus.length; ++b)
 				{
 					// values derived from bonus id list at https://gist.github.com/erorus/35705144b1a4ad015924
 					if(bonus[b] >= 1372 && bonus[b] <= 1672)
 						trinket.bonus_level += bonus[b] - 1472;
 				}
-				trinket.wowhead += '&bonus=' + trinket.bonus_id.replace(/\//g, ':');
+				trinket.wowhead += '&bonus=' + item.bonus_id.replace(/\//g, ':');
 			}
-			if(ilevel_override.hasOwnProperty(trinket.id))
-				trinket.item_level = ilevel_override[trinket.id];
+			if(!trinket.sim_name) trinket.sim_name = trinket.name;
 			return trinket;
 		};
 
 		const parseSimCraft = function(input)
 		{
+			if(!ctrl.known) return;
 			$window.localStorage.simCraft = input;
 			ctrl.trinkets = [];
 			const trinketEntries = /trinket\d=(\S+)/g;
@@ -109,16 +105,30 @@
 					if(attribute.length === 2)
 						item[attribute[0]] = attribute[1];
 				}
-				trinkets.push(ParseTrinket(item));
+				if((item.id in ctrl.known))
+					trinkets.push(ParseTrinket(item));
 			}
 			while(trinket);
 			$timeout(() => ctrl.trinkets = trinkets, 5);
 		};
 
+		const trinketsLoaded = function(known)
+		{
+			ctrl.known = known;
+			if(ctrl.simCraft)
+				parseSimCraft($window.localStorage.simCraft);
+		};
 
 		$scope.$watch('$ctrl.simCraft', parseSimCraft);
-		this.trinkets = [];
-		this.simCraft = $window.localStorage.simCraft || '';
+
+		const load = function()
+		{
+			KnownTrinkets.get(trinketsLoaded);
+			ctrl.trinkets = [];
+			ctrl.simCraft = $window.localStorage.simCraft || '';
+		};
+
+		this.$onInit = () => load();
 	}
 
 	app.component(
@@ -145,40 +155,11 @@
 		this.style = $window.localStorage.style || 'C';
 		$scope.$watch('$ctrl.style', load);
 
-		// Utility function to look up the name of a trinket
-		this.nameOf = function(itemId)
-		{
-			if(trinketNames.hasOwnProperty(itemId))
-				return trinketNames[itemId];
-
-			if(!ctrl.data || !ctrl.data.item_ids)
-				return null;
-
-			for(let item in ctrl.data.item_ids)
-			{
-				if(ctrl.data.item_ids[item] === itemId * 1)
-					return item;
-			}
-			return null;
-		};
-
 		this.availableTrinkets = {};
 		function updateTrinketList()
 		{
 			// No data loaded yet, abort.
 			if(!ctrl.trinkets || !ctrl.data || !ctrl.data.item_ids) return;
-
-			// Loop through user supplied trinket list to add name and wowhead URLs
-			for(let i = 0; i < ctrl.trinkets.length; ++i)
-			{
-				const trinket = ctrl.trinkets[i];
-				const name = ctrl.nameOf(trinket.id);
-				if(name)
-				{
-					trinket.name = name.replace(/_/g, ' ');
-					ctrl.availableTrinkets[trinket.name] = trinket;
-				}
-			}
 			generateChart();
 		}
 
@@ -269,7 +250,7 @@
 			for(let i = 0; i < ctrl.data.sorted_data_keys.length; ++i)
 			{
 				const sorted = ctrl.data.sorted_data_keys[i];
-				const trinket = ctrl.availableTrinkets[sorted];
+				const trinket = _.find(ctrl.trinkets, (t) => t.sim_name === sorted);
 				if(!trinket) continue;
 				trinkets[sorted] = trinket;
 			}
@@ -282,7 +263,7 @@
 
 				categories.push(
 					'<div style="display:inline-block;margin-bottom:-3px">' +
-					'<a href="#" rel="' + trinket.wowhead + '" class="chart_link">' + trinket.name + '</a>' +
+					'<a href="#" rel="' + trinket.wowhead + '" class="chart_link" style="color:black">' + trinket.name + '</a>' +
 					'</div>'
 				);
 			}
@@ -309,6 +290,7 @@
 
 					let minItemLevel = keys[0] * 1;
 					const itemLevel = (trinket.item_level || minItemLevel) + trinket.bonus_level;
+					console.log(trinket.item_level, itemLevel);
 					let dps = ctrl.data.data[sortedData][currIlevel];
 					let baselineDPS = currIlevel === minItemLevel
 						? ctrl.data.data.Base["300"] // If lowest ilvl is looked at, subtract base DPS
